@@ -1,0 +1,97 @@
+{
+  "tasks": [
+    {
+      "id": "Master_Job_0.1",
+      "type": "workflow_chain",
+      "strategy": "Master Orchestration (Consolidated 11 steps)",
+      "steps": [
+        {
+          "id": "fact_workorder_Copy_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\fact_workorder_Copy_0.1.item"
+        },
+        {
+          "id": "productVendor_Copy_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\productVendor_Copy_0.1.item"
+        },
+        {
+          "id": "fact_purchasing_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\fact_purchasing_0.1.item"
+        },
+        {
+          "id": "load_dimprodinventory_Copy_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\load_dimprodinventory_Copy_0.1.item"
+        },
+        {
+          "id": "dimlocationmysql_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\dimlocationmysql_0.1.item"
+        },
+        {
+          "id": "dimproductcosthistory_Copy1_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\dimproductcosthistory_Copy1_0.1.item"
+        },
+        {
+          "id": "dimproducts_Copy_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\dimproducts_Copy_0.1.item"
+        },
+        {
+          "id": "Parallel_Job_0.1",
+          "type": "workflow_group",
+          "strategy": "Trigger Sub-Workflows",
+          "capabilities": [
+            "SUBJOB",
+            "PARALLEL"
+          ],
+          "file": "process\\AdW2017_Op_Mysql\\Parallel_Job_0.1.item"
+        },
+        {
+          "id": "shipmethodmysql_op_0.1",
+          "type": "dbt_run",
+          "strategy": "Execute SQL Model",
+          "capabilities": [],
+          "file": "process\\AdW2017_Op_Mysql\\shipmethodmysql_op_0.1.item"
+        },
+        {
+          "id": "Product_SubJobs_0.1",
+          "type": "workflow_group",
+          "strategy": "Trigger Sub-Workflows",
+          "capabilities": [
+            "SUBJOB",
+            "PARALLEL"
+          ],
+          "file": "process\\AdW2017_Op_Mysql\\Product_SubJobs_0.1.item"
+        },
+        {
+          "id": "Master_Job_0.1",
+          "type": "workflow_group",
+          "strategy": "Trigger Sub-Workflows",
+          "capabilities": [
+            "SUBJOB",
+            "PARALLEL"
+          ],
+          "file": "process\\AdW2017_Op_Mysql\\Master_Job_0.1.item"
+        }
+      ]
+    }
+  ]
+}

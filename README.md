@@ -1,1 +1,0 @@
-# Talend-to-DBT-DuckDB-TempralIO-Agent

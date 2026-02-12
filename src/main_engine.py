@@ -1,23 +1,38 @@
 import os
 import json
+import re
 import networkx as nx
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from lxml import etree
 from src.config import INPUT_DIR, DBT_OUTPUT_DIR, TEMPORAL_OUTPUT_DIR
 from src.graph_builder import ProjectGraph
+from src.context_parser import ContextParser
+from src.context_discoverer import ContextDiscoverer
 from src.agent_llm import SouravAgent
 from src.temporal_generator import TemporalGenerator
+from src.knowledge_base import KnowledgeRetriever
+from src.memory import SemanticMemory
 
-# --- HARDWARE OPTIMIZATION ---
 MAX_WORKERS = 8  
 
 class MigrationEngine:
     def __init__(self):
         self.graph_builder = ProjectGraph(INPUT_DIR)
-        self.agent = SouravAgent()
+        self.context_parser = ContextParser()
+        self.kb = KnowledgeRetriever()
+        self.memory = SemanticMemory()
+        self.agent = None 
 
     def run(self):
-        print(f"[INFO] STARTING TALEND-TO-DBT-SOURAV-AGENT (Parallel Threads: {MAX_WORKERS})...")
+        print("="*60)
+        print("[INFO] STARTING TALEND-TO-DBT-SOURAV-AGENT (AGI-CYBERNET-MODE)")
+        print("="*60)
+        
+        discoverer = ContextDiscoverer()
+        discoverer.run()
+        
+        self.agent = SouravAgent()
+        self.context_parser.parse()
         graph = self.graph_builder.build()
         TemporalGenerator(graph, TEMPORAL_OUTPUT_DIR).generate()
         self._generate_dbt_assets_parallel(graph)
@@ -30,26 +45,27 @@ class MigrationEngine:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             for job in graph.nodes:
                 node_data = graph.nodes[job]
-                
-                if node_data.get('type') == 'orchestration': 
+                # Skip orchestration jobs (handled by Temporal) or jobs without files
+                if node_data.get('type') == 'ORCHESTRATION' or 'filepath' not in node_data:
                     continue
                 
-                if node_data.get('type') == 'joblet':
-                    future = executor.submit(self._convert_joblet, job, node_data['filepath'])
+                # Also skip Iterators/Triggers from SQL gen as they are temporal tasks
+                if node_data.get('type') in ['ITERATOR', 'FILE_TRIGGER']:
+                     continue
+
+                # PATCH: Reconstruct Absolute Path for File Reading
+                # The graph now stores relative paths, so we must join with INPUT_DIR
+                full_path = os.path.join(INPUT_DIR, node_data['filepath'])
+
+                if node_data.get('type') == 'JOBLET':
+                    future = executor.submit(self._convert_joblet, job, full_path)
                 else:
-                    future = executor.submit(self._convert_job_chain, job, node_data['filepath'])
-                
+                    future = executor.submit(self._convert_job_chain, job, full_path)
                 tasks.append(future)
 
-            total = len(tasks)
-            completed = 0
-            print(f"[INFO] Processing {total} conversion tasks with {MAX_WORKERS} threads...")
-            
             for future in as_completed(tasks):
-                completed += 1
                 try:
-                    result = future.result()
-                    print(f"   [{completed}/{total}] {result}")
+                    future.result()
                 except Exception as e:
                     print(f"   [ERROR] Task failed: {e}")
 
@@ -58,102 +74,179 @@ class MigrationEngine:
         if sql:
             path = os.path.join(DBT_OUTPUT_DIR, "macros", f"{name}.sql")
             with open(path, "w", encoding='utf-8') as f:
-                f.write(f"{{% macro {name}() %}}\n{sql}\n{{% endmacro %}}")
-            return f"Converted Joblet: {name}"
-        return f"Skipped Joblet: {name}"
+                f.write(f"{{% macro {name}() %}}\n/* Joblet: {name} */\n{sql}\n{{% endmacro %}}")
 
     def _convert_job_chain(self, name, filepath):
-        sql = self._process_xml_chain(name, filepath)
-        if sql:
+        raw_sql = self._process_xml_chain(name, filepath)
+        if raw_sql:
             path = os.path.join(DBT_OUTPUT_DIR, "models", f"{name}.sql")
             with open(path, "w", encoding='utf-8') as f:
-                f.write(f"-- Migrated Job: {name}\n")
-                f.write("WITH \n")
-                f.write(sql)
-                f.write(f"\n\nSELECT * FROM final_cte")
-            return f"Converted Job: {name}"
-        return f"Skipped Job: {name}"
+                f.write(f"-- Migrated Job: {name}\nWITH \n{raw_sql}\n\nSELECT * FROM final_cte")
 
     def _process_xml_chain(self, job_name, filepath):
         try:
-            tree = etree.parse(filepath)
+            # FIX: Robust Parser
+            parser = etree.XMLParser(recover=True)
+            tree = etree.parse(filepath, parser=parser)
+            root = tree.getroot()
             
-            # NAMESPACE-AGNOSTIC GRAPH BUILDING
-            internal_graph = nx.DiGraph()
-            connections = tree.xpath("//*[local-name()='connection']")
-            for conn in connections:
-                src, tgt = conn.get("source"), conn.get("target")
-                if src and tgt:
-                    internal_graph.add_edge(src, tgt)
-            
-            try:
-                comps = list(nx.topological_sort(internal_graph))
-            except:
-                # Fallback: Get all UNIQUE_NAME values directly if graph fails
-                comps = tree.xpath("//*[local-name()='elementParameter' and @name='UNIQUE_NAME']/@value")
-                
-            cte_list = []
-            prev_cte = "dual"
-            
-            # FETCH ALL NODES
-            all_nodes = tree.xpath("//*[local-name()='node']")
-            
-            for comp_id in comps:
-                # SEARCH FOR NODE
-                node = None
-                for candidate in all_nodes:
-                    u_name = candidate.xpath(".//*[local-name()='elementParameter' and @name='UNIQUE_NAME']/@value")
-                    if u_name and u_name[0] == comp_id:
-                        node = candidate
-                        break
-                
-                if node is None: continue
-                
-                comp_type = node.get("componentName")
-                xml_str = etree.tostring(node).decode('utf-8')
-                
-                # 1. Handle Inputs
-                if "Input" in comp_type:
-                    params = node.xpath(".//*[local-name()='elementParameter']")
-                    raw_val = None
-                    for p in params:
-                        if p.get("name") in ["TABLE", "FILENAME"]:
-                            raw_val = p.get("value")
+            # 1. Identify Nodes using Python Iteration (No XPath Predicates)
+            comp_map = {}
+            for elem in root.iter():
+                if "node" in elem.tag:
+                    u_name = None
+                    for child in elem:
+                        if "elementParameter" in child.tag and child.get("name") == "UNIQUE_NAME":
+                            u_name = child.get("value")
                             break
-                    
-                    if raw_val:
-                        if "context." in raw_val or "globalMap.get" in raw_val:
-                            var_name = raw_val.split('.')[-1].replace('"', '').replace(')', '')
-                            source_ref = f"{{{{ var('{var_name}', 'default_{comp_id}') }}}}"
-                        else:
-                            clean_val = raw_val.replace('"', '').replace('\\', '/')
-                            tbl_name = os.path.splitext(os.path.basename(clean_val))[0] if '/' in clean_val else clean_val
-                            source_ref = f"{{{{ source('raw', '{tbl_name}') }}}}"
-                    else:
-                        source_ref = f"{{{{ source('raw', 'src_{comp_id}') }}}}"
+                    if u_name:
+                        comp_map[u_name] = elem
 
-                    cte_list.append(f"{comp_id} AS ( SELECT * FROM {source_ref} )")
-                    prev_cte = comp_id
+            # 2. Build Internal Graph
+            internal_graph = nx.DiGraph()
+            conn_map = {}
+            
+            for elem in root.iter():
+                if "connection" in elem.tag:
+                    src = elem.get("source")
+                    tgt = elem.get("target")
+                    name = elem.get("name") or elem.get("label") or "row"
+                    if src and tgt:
+                        internal_graph.add_edge(src, tgt)
+                        conn_map[name] = src
+                        conn_map[f"{src}->{tgt}"] = name
+
+            try:
+                execution_order = list(nx.topological_sort(internal_graph))
+            except:
+                execution_order = list(comp_map.keys())
+
+            cte_list = []
+            cte_registry = {} 
+            
+            # EXPANDED EXCLUSION LIST FOR ORCHESTRATORS
+            ORCHESTRATION_COMPONENTS = [
+                "tPrejob", "tPostjob", "tRunJob", "tLoop", "tForeach", "tInfiniteLoop", 
+                "tFlowToIterate", "tIterateToFlow", "tFileList", "tWaitForFile", 
+                "tWaitForSocket", "tWaitForSqlData", "tSleep", "tDie", "tWarn", 
+                "tLogCatcher", "tStatCatcher", "tAssert", "tAssertCatcher", 
+                "tParallelize", "tPartitioner", "tCollector", "tDepartitioner", 
+                "tRecollector", "tReplicate", "tUnite", "tBarrier", "tSystem", 
+                "tChronometerStart", "tChronometerStop", "tFlowMeter", "tFlowMeterCatcher", 
+                "tMoment", "tMsgBox", "tSocketInput", "tSocketOutput", "tRest", 
+                "tRestClient", "tRouteInput", "tRouteOutput"
+            ]
+
+            for comp_id in execution_order:
+                if comp_id not in comp_map: continue
+                node = comp_map[comp_id]
+                comp_type = node.get("componentName")
+                
+                # *** GUARDRAIL: Skip Logic-Only Components ***
+                if comp_type in ORCHESTRATION_COMPONENTS:
+                    # Special logging for debugging
+                    if comp_type in ["tPrejob", "tPostjob"]:
+                        print(f"   [INFO] Lifecycle Hook {comp_type} detected. Handled by Temporal.")
                     continue
                 
-                if "Output" in comp_type:
-                    continue
+                # Manual serialization to string for Agent
+                xml_str = etree.tostring(node).decode('utf-8')
 
-                # 3. Handle Transformations
-                input_map = { "prev_cte": prev_cte }
-                result = self.agent.convert_component(job_name, comp_type, xml_str, prev_cte, json.dumps(input_map))
+                predecessors = list(internal_graph.predecessors(comp_id))
+                input_ctes = [cte_registry[p] for p in predecessors if p in cte_registry]
+                
+                prev_cte_context = []
+                for p in predecessors:
+                    if p in cte_registry:
+                        flow_name = conn_map.get(f"{p}->{comp_id}", "unknown")
+                        prev_cte_context.append(f"Flow '{flow_name}' is CTE '{cte_registry[p]}'")
+                
+                prev_cte_str = " | ".join(prev_cte_context) if prev_cte_context else "dual"
+
+                if "Input" in comp_type:
+                    cte_sql = self._handle_input_component(node, comp_id)
+                    cte_list.append(cte_sql)
+                    cte_registry[comp_id] = comp_id
+                    continue
+                
+                if "Output" in comp_type: continue
+
+                # Deep Scan
+                if "tMap" in comp_type:
+                    dna_summary = self._scan_tmap_deep(node)
+                else:
+                    dna_summary = self._universal_recursive_introspector(node, comp_type)
+                
+                input_map = { "input_ctes": input_ctes, "structure_hint": dna_summary }
+                
+                result = self.agent.convert_component(job_name, comp_type, xml_str, prev_cte_str, json.dumps(input_map))
                 
                 if result.get('status') == 'SUCCESS':
                     clean_sql = result['sql_logic'].strip().rstrip(';')
                     cte_list.append(f"{comp_id} AS (\n {clean_sql} \n)")
-                    prev_cte = comp_id
+                    cte_registry[comp_id] = comp_id
             
-            # --- CRITICAL PATCH: NO LEADING/DANGLING COMMAS ---
-            if not cte_list:
-                return None
-                
-            return ",\n".join(cte_list) + f",\nfinal_cte AS ( SELECT * FROM {prev_cte} )"
+            if not cte_list: return None
+            final_cte = execution_order[-1] if execution_order else "dual"
+            if final_cte not in cte_registry: final_cte = cte_list[-1].split(" AS")[0]
+            return ",\n".join(cte_list) + f",\nfinal_cte AS ( SELECT * FROM {final_cte} )"
             
         except Exception as e:
-            print(f"[WARN] Error processing XML chain for {job_name}: {e}")
+            print(f"[WARN] Error processing {job_name}: {e}")
             return None
+
+    def _handle_input_component(self, node, comp_id):
+        params = {}
+        for child in node:
+            if "elementParameter" in child.tag:
+                params[child.get("name")] = child.get("value")
+        
+        query = params.get("QUERY", "").replace('"', '').replace('\\', '')
+        if len(query) > 10:
+            query = re.sub(r'context\.(\w+)', r"{{ var('\1') }}", query).replace(' + ', '').strip()
+            return f"{comp_id} AS ( \n    {query} \n)"
+        table = params.get("TABLE", f"src_{comp_id}").replace('"', '')
+        return f"{comp_id} AS ( SELECT * FROM {{{{ source('raw', '{table}') }}}} )"
+
+    def _scan_tmap_deep(self, node):
+        dna = ["COMPONENT: tMap"]
+        # Python Iteration for tMap structure
+        node_data = None
+        for child in node:
+            if "nodeData" in child.tag:
+                node_data = child
+                break
+        
+        if node_data is not None:
+            for tbl in node_data:
+                if "inputTables" in tbl.tag:
+                    name = tbl.get("name")
+                    join = tbl.get("joinType") or "CROSS"
+                    keys = []
+                    for entry in tbl:
+                        if "mapperTableEntries" in entry.tag and entry.get("expression"):
+                            keys.append(f"{name}.{entry.get('name')} = {entry.get('expression')}")
+                    dna.append(f"INPUT [{name}]: Join={join} ON {' AND '.join(keys)}")
+                
+                if "outputTables" in tbl.tag:
+                    name = tbl.get("name")
+                    dna.append(f"\nOUTPUT_TARGET [{name}]:")
+                    for entry in tbl:
+                        if "mapperTableEntries" in entry.tag:
+                            col = entry.get("name")
+                            expr = entry.get("expression")
+                            if expr:
+                                expr = expr.replace("Relational.ISNULL", "IS NULL")
+                                dna.append(f"   - {col} := {expr}")
+                            else:
+                                dna.append(f"   - {col} := NULL")
+        return "\n".join(dna)
+
+    def _universal_recursive_introspector(self, node, comp_type):
+        dna = [f"COMPONENT: {comp_type}"]
+        for child in node:
+            if "elementParameter" in child.tag:
+                n = child.get("name")
+                v = child.get("value")
+                if n and v and "COLOR" not in n: dna.append(f"{n}={v}")
+        return "\n".join(dna[:50])

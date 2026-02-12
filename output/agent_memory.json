@@ -1,0 +1,17 @@
+{
+  "a791222ab41350c0d66854d6ef1dfba6": {
+    "sql": "WITH dual AS (SELECT 1 AS dummy), logc AS (SELECT '2023-01-01 12:00:00' AS moment, 123 AS pid, 456 AS root_pid, 789 AS father_pid, 'ProjectA' AS project, 'JobA' AS job, 'ContextA' AS context, 'INFO' AS priority, 'TYPE1' AS type, 'OriginA' AS origin, 'Test message' AS message, 'CODE123' AS code) SELECT logc.moment AS moment, logc.pid AS pid, logc.root_pid AS root_pid, logc.father_pid AS father_pid, logc.project AS project, logc.job AS job, logc.context AS context, logc.priority AS priority, logc.type AS type, logc.origin AS origin, logc.message AS message, logc.code AS code FROM dual CROSS JOIN logc",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "63559f4ba9d578c9c034239f4a063855": {
+    "sql": "WITH tFileInputDelimited_1 AS (SELECT * FROM (VALUES (1)) AS t(id)) SELECT NULL AS sor_ID, NULL AS DateKey, NULL AS FullDateAlternateKey, NULL AS DayNumberOfMonth, NULL AS MonthName, NULL AS MonthNumberOfYear, NULL AS CalenderYear, NULL AS FiscalQuarter, NULL AS CalenderQuarter, NULL AS FiscalYear FROM tFileInputDelimited_1",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "3a98b96afa5c0b480925f62f2a3f170d": {
+    "sql": "WITH dual AS (SELECT * FROM (VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) AS t(moment, pid, project, job, language, origin, status, substatus, description)) SELECT dual.moment AS moment, dual.pid AS pid, dual.project AS project, dual.job AS job, dual.language AS language, dual.origin AS origin, dual.status AS status, dual.substatus AS substatus, dual.description AS description FROM dual",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  }
+}

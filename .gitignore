@@ -1,2 +1,6 @@
 *.exe
 *.zip
+*.jar
+__pycache__/
+.DS_Store
+.env
