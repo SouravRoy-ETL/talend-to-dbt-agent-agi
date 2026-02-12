@@ -51,7 +51,8 @@ class KnowledgeRetriever:
             # --- Relational & Numeric ---
             "Relational.ISNULL": "({{arg1}} IS NULL)",
             "Relational.NOTISNULL": "({{arg1}} IS NOT NULL)",
-            "Numeric.sequence": "row_number() OVER (ORDER BY (SELECT NULL))",
+            # PATCH: Simplify sequence generation for DuckDB/dbt
+            "Numeric.sequence": "row_number() OVER ()",
             "Numeric.random": "random()",
             
             # --- DataOperation ---

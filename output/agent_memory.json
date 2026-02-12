@@ -1,16 +1,66 @@
 {
-  "a791222ab41350c0d66854d6ef1dfba6": {
-    "sql": "WITH dual AS (SELECT 1 AS dummy), logc AS (SELECT '2023-01-01 12:00:00' AS moment, 123 AS pid, 456 AS root_pid, 789 AS father_pid, 'ProjectA' AS project, 'JobA' AS job, 'ContextA' AS context, 'INFO' AS priority, 'TYPE1' AS type, 'OriginA' AS origin, 'Test message' AS message, 'CODE123' AS code) SELECT logc.moment AS moment, logc.pid AS pid, logc.root_pid AS root_pid, logc.father_pid AS father_pid, logc.project AS project, logc.job AS job, logc.context AS context, logc.priority AS priority, logc.type AS type, logc.origin AS origin, logc.message AS message, logc.code AS code FROM dual CROSS JOIN logc",
-    "reasoning": "Direct Translation",
-    "type": "tMap"
-  },
   "63559f4ba9d578c9c034239f4a063855": {
-    "sql": "WITH tFileInputDelimited_1 AS (SELECT * FROM (VALUES (1)) AS t(id)) SELECT NULL AS sor_ID, NULL AS DateKey, NULL AS FullDateAlternateKey, NULL AS DayNumberOfMonth, NULL AS MonthName, NULL AS MonthNumberOfYear, NULL AS CalenderYear, NULL AS FiscalQuarter, NULL AS CalenderQuarter, NULL AS FiscalYear FROM tFileInputDelimited_1",
+    "sql": "WITH tFileInputDelimited_1 AS (SELECT * FROM (VALUES (1, '2023-01-01', '2023-01-01', 1, 'January', 1, 2023, 1, 1, 2023, 1)) AS t(sor_ID, FullDateAlternateKey, DayNumberOfMonth, MonthName, MonthNumberOfYear, CalenderYear, FiscalQuarter, CalenderQuarter, FiscalYear)) SELECT NULL AS sor_ID, NULL AS DateKey, NULL AS FullDateAlternateKey, NULL AS DayNumberOfMonth, NULL AS MonthName, NULL AS MonthNumberOfYear, NULL AS CalenderYear, NULL AS FiscalQuarter, NULL AS CalenderQuarter, NULL AS FiscalYear FROM tFileInputDelimited_1",
     "reasoning": "Direct Translation",
     "type": "tMap"
   },
-  "3a98b96afa5c0b480925f62f2a3f170d": {
-    "sql": "WITH dual AS (SELECT * FROM (VALUES (NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)) AS t(moment, pid, project, job, language, origin, status, substatus, description)) SELECT dual.moment AS moment, dual.pid AS pid, dual.project AS project, dual.job AS job, dual.language AS language, dual.origin AS origin, dual.status AS status, dual.substatus AS substatus, dual.description AS description FROM dual",
+  "e079c559036bb66aefaad39a310f0e11": {
+    "sql": "WITH dual AS (SELECT * FROM (VALUES (1)) AS t(id)), flow_in AS (SELECT * FROM dual) SELECT flow_in.moment, flow_in.pid, flow_in.father_pid, flow_in.root_pid, flow_in.system_pid, flow_in.project, flow_in.job, flow_in.job_repository_id, flow_in.job_version, flow_in.context, flow_in.origin, flow_in.label, flow_in.count, flow_in.reference, flow_in.thresholds FROM flow_in",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "70f3e0ce4d77d947e0e5f6d848fee3fd": {
+    "sql": "WITH stats01 AS (SELECT * FROM tDBInput_1), lookup_jobPID AS (SELECT * FROM tMSSqlInput_1), lookup_rootpid AS (SELECT * FROM tDBInput_1) SELECT stats01.moment AS moment, stats01.pid AS pid, stats01.father_pid AS father_pid, stats01.root_pid AS root_pid, stats01.system_pid AS system_pid, stats01.project AS project, stats01.job AS job, stats01.job_repository_id AS job_repository_id, stats01.job_version AS job_version, stats01.context AS context, stats01.origin AS origin, stats01.message_type AS message_type, stats01.message AS message, CASE WHEN stats01.duration IS NOT NULL THEN stats01.duration / 1000 ELSE NULL END AS duration, stats01.pid AS pid, stats01.father_pid AS father_pid, stats01.root_pid AS root_pid, stats01.system_pid AS system_pid, stats01.job AS job, stats01.project AS project, stats01.context AS context, stats01.message_type AS message_type, stats01.message AS message, CASE WHEN stats01.pid = stats01.root_pid THEN stats01.job ELSE CASE WHEN lookup_rootpid.root_name IS NULL THEN 'Unknown' ELSE lookup_rootpid.root_name END END AS root_name, stats01.duration AS duration, lookup_jobPID.moment AS job_start_time, CASE WHEN stats01.duration IS NOT NULL THEN stats01.moment ELSE NULL END AS job_end_time, CASE WHEN stats01.pid = stats01.root_pid THEN 'Y' ELSE 'N' END AS is_root_job, stats01.pid AS Job_pid, stats01.moment AS moment, stats01.pid AS pid, stats01.father_pid AS father_pid, stats01.root_pid AS root_pid, stats01.system_pid AS system_pid, stats01.project AS project, stats01.job AS job, stats01.job_repository_id AS job_repository_id, stats01.job_version AS job_version, stats01.context AS context, stats01.origin AS origin, stats01.message_type AS message_type, stats01.message AS message, lookup_jobPID.moment AS job_start_time, stats01.job AS job_name, stats01.message AS job_status, CASE WHEN stats01.pid = stats01.root_pid THEN stats01.job ELSE CASE WHEN lookup_rootpid.root_name IS NULL THEN 'Unknown' ELSE lookup_rootpid.root_name END END AS root_name, CASE WHEN stats01.pid = stats01.root_pid THEN 'Y' ELSE 'N' END AS is_root_job, stats01.moment AS moment, stats01.context AS context, stats01.origin AS origin, stats01.message_type AS message_type, stats01.message AS message, stats01.duration AS duration, CASE WHEN stats01.duration IS NOT NULL THEN stats01.moment ELSE NULL END AS job_finish_time, stats01.message AS job_status, stats01.duration AS job_duration, lookup_jobPID.job_sk AS job_sk FROM stats01 LEFT JOIN lookup_jobPID ON lookup_jobPID.Job_pid = stats01.pid LEFT JOIN lookup_rootpid ON lookup_rootpid.Job_pid = stats01.root_pid",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "88382638c8c9114c8ea6e4a1e44b117d": {
+    "sql": "WITH tDBInput_1 AS (SELECT * FROM (VALUES (1, '123 Main St', NULL)) AS t(id, addressline1, addressline2)), tDBInput_2 AS (SELECT * FROM (VALUES (1, 'N123456789', '2020-01-01', '1990-01-01', 'Y', 'M')) AS t(id, nationalidnumber, hiredate, birthdate, salariedflag, gender)), tDBInput_3 AS (SELECT * FROM (VALUES (1, 'John', 'Doe', 'M')) AS t(id, firstname, lastname, middlename)), tDBInput_4 AS (SELECT * FROM (VALUES (1, '555-1234')) AS t(id, phonenumber)), tDBInput_5 AS (SELECT * FROM (VALUES (1, 'john.doe@example.com')) AS t(id, emailaddress)), tDBInput_6 AS (SELECT * FROM (VALUES (1, 101)) AS t(id, geographykey)) SELECT tDBInput_3.businesentityid AS BusinessEntityID, row_number() OVER () AS EmployeeKey, tDBInput_2.nationalidnumber AS EmployeeNationalID, tDBInput_1.addressline1 AS AddressLine1, tDBInput_1.addressline2 AS AddressLine2, tDBInput_3.firstname AS FirstName, tDBInput_3.lastname AS LastName, tDBInput_3.middlename AS MiddleName, tDBInput_2.hiredate AS HireDate, tDBInput_2.birthdate AS BirthDate, tDBInput_5.emailaddress AS EmailAddress, tDBInput_4.phonenumber AS Phone, tDBInput_2.salariedflag AS SalariedFlag, tDBInput_2.gender AS Gender, context.getProperty('vJobPID') AS DI_JOB_ID, current_date AS DI_MODIFIED_DATE, current_date AS DI_CREATED_DATE, tDBInput_6.geographykey AS Geokey, 2 AS SOR_ID FROM tDBInput_3 LEFT JOIN tDBInput_4 ON tDBInput_4.businesentityid = tDBInput_3.businesentityid LEFT JOIN tDBInput_5 ON tDBInput_5.businesentityid = tDBInput_3.businesentityid LEFT JOIN tDBInput_2 ON 1=1 LEFT JOIN tDBInput_1 ON 1=1 LEFT JOIN tDBInput_6 ON 1=1",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "a791222ab41350c0d66854d6ef1dfba6": {
+    "sql": "WITH logc AS (SELECT * FROM (VALUES (1, '2023-01-01', 123, 456, 'proj', 'job', 'ctx', 1, 'type', 'orig', 'msg', 'code')) AS t(moment, pid, root_pid, father_pid, project, job, context, priority, type, origin, message, code)) SELECT logc.moment AS moment, logc.pid AS pid, logc.root_pid AS root_pid, logc.father_pid AS father_pid, logc.project AS project, logc.job AS job, logc.context AS context, logc.priority AS priority, logc.type AS type, logc.origin AS origin, logc.message AS message, logc.code AS code FROM logc",
+    "reasoning": "Direct Translation",
+    "type": "tMap"
+  },
+  "d8b9910a40df9b3cbd699d9606067772": {
+    "sql": "WITH tSetGlobalVar_1 AS (SELECT * FROM tMap_1) SELECT * FROM tSetGlobalVar_1",
+    "reasoning": "Direct Translation",
+    "type": "tSetGlobalVar"
+  },
+  "ac88e5ab817cab13530d04c7f42a9557": {
+    "sql": "WITH tSetGlobalVar_2 AS (SELECT * FROM tMap_2) SELECT * FROM tSetGlobalVar_2",
+    "reasoning": "Direct Translation",
+    "type": "tSetGlobalVar"
+  },
+  "a6eaf694578ce158a8cc620c36560840": {
+    "sql": "SELECT 'No SQL required for tSendMail component' AS note",
+    "reasoning": "Direct Translation",
+    "type": "tSendMail"
+  },
+  "04fbdfbe0a7d4cdcf69393021ab7d535": {
+    "sql": "WITH tSetGlobalVar_2 AS (SELECT * FROM (VALUES (1)) AS t(id)) SELECT * FROM tSetGlobalVar_2",
+    "reasoning": "Direct Translation",
+    "type": "tSendMail"
+  },
+  "64f9a5f9cbe6bf952d6d17f0182df935": {
+    "sql": "WITH tJavaRow_1 AS (SELECT 1 AS dummy_col) SELECT 'dummy' AS output_col FROM tJavaRow_1",
+    "reasoning": "Direct Translation",
+    "type": "tSendMail"
+  },
+  "e7c53ecbf3036ead4f6989c5954defc5": {
+    "sql": "WITH tJavaRow_1 AS (SELECT 1 AS dummy_col) SELECT 'dummy' AS dummy_output FROM tJavaRow_1",
+    "reasoning": "Direct Translation",
+    "type": "tSendMail"
+  },
+  "91638117bc8f74e772f1f4fa208e1860": {
+    "sql": "SELECT 'No SQL required for tSendMail component' AS note",
+    "reasoning": "Direct Translation",
+    "type": "tSendMail"
+  },
+  "86b392b24f91f32a69e95265cafe9380": {
+    "sql": "WITH tFileInputExcel_1 AS (SELECT * FROM (VALUES (1, 'test')) AS t(id, name)) SELECT NULL AS DI_Reject_SK, NULL AS DI_RejectCode, NULL AS DI_RejectReason, NULL AS DI_RejectDescription, NULL AS SOR_ID FROM tFileInputExcel_1",
     "reasoning": "Direct Translation",
     "type": "tMap"
   }
